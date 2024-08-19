@@ -1,6 +1,7 @@
 {
     "C_Cpp.default.compilerPath": "/bin/gcc",
     "files.associations": {
-        "types.h": "c"
+        "types.h": "c",
+        "stat.h": "c"
     }
 }
