@@ -130,6 +130,7 @@ const uint32_t INTERNAL_NODE_KEY_SIZE = sizeof(uint32_t);
 const uint32_t INTERNAL_NODE_CHILD_SIZE = sizeof(uint32_t);
 const uint32_t INTERNAL_NODE_CELL_SIZE =
     INTERNAL_NODE_CHILD_SIZE + INTERNAL_NODE_KEY_SIZE;
+const uint32_t INTERNAL_NODE_MAX_CELLS = 3;
 
 /*
  * Leaf Node Header Layout
@@ -203,7 +204,7 @@ uint32_t* internal_node_child(void* node, uint32_t child_num) {
 }
 
 uint32_t* internal_node_key(void* node, uint32_t key_num) {
-  return internal_node_cell(node, key_num) + INTERNAL_NODE_CHILD_SIZE;
+  return (void*)internal_node_cell(node, key_num) + INTERNAL_NODE_CHILD_SIZE;
 }
 
 uint32_t* leaf_node_num_cells(void* node) {
@@ -423,6 +424,40 @@ Cursor* table_find(Table* table, uint32_t key) {
   } else {
     return internal_node_find(table, root_page_num, key);
     exit(EXIT_FAILURE);
+  }
+}
+
+void internal_node_insert(Table* table, uint32_t parent_page_num, uint32_t child_page_num) {
+  void* parent = get_page(table->pager, parent_page_num);
+  void* child = get_page(table->pager, child_page_num);
+  uint32_t child_max_key = get_node_max_key(child);
+  uint32_t index = internal_node_find_child(parent, child_max_key);
+
+  uint32_t original_key_num = *internal_node_num_keys(parent);
+  *internal_node_num_keys(parent) = original_key_num + 1;
+
+  if (original_key_num >= INTERNAL_NODE_MAX_CELLS) {
+    printf("Need to implement splitting internal node\n");
+    exit(EXIT_FAILURE);
+  }
+
+  uint32_t right_child_page_num = *internal_node_right_child(parent);
+  void* right_child = get_page(table->pager, right_child_page_num);
+
+  if (child_max_key > get_node_max_key(right_child)) {
+    /* Replace right child */
+    *internal_node_child(parent, original_key_num) = right_child_page_num;
+    *internal_node_key(parent, original_key_num) = get_node_max_key(right_child);
+    *internal_node_right_child(parent) = child_page_num;
+  } else {
+    /* Make room for the new cell */
+    for (uint32_t i = original_key_num; i > index; i--) {
+      void* destination = internal_node_cell(parent, i);
+      void* source = internal_node_cell(parent, i - 1);
+      memcpy(destination, source, INTERNAL_NODE_CELL_SIZE);
+    }
+    *internal_node_cell(parent, index) = child_page_num;
+    *internal_node_key(parent, index) = child_max_key;
   }
 }
 
@@ -648,6 +683,8 @@ go onto the end of the database file
 */
 uint32_t get_unused_page_num(Pager* pager) { return pager->num_pages; }
 
+uint32_t* node_parent(void* node) { return node + PARENT_POINTER_OFFSET; }
+
 void create_new_root(Table* table, uint32_t right_child_page_num) {
   /*
   Handle splitting the root.
@@ -677,8 +714,6 @@ void create_new_root(Table* table, uint32_t right_child_page_num) {
   *node_parent(left_child) = table->root_page_num;
   *node_parent(right_child) = table->root_page_num;
 }
-
-uint32_t* node_parent(void* node) { return node + PARENT_POINTER_OFFSET; }
 
 void update_internal_node_key(void* node, uint32_t old_key, uint32_t new_key) {
   uint32_t old_child_index = internal_node_find_child(node, old_key);
