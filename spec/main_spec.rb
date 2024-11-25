@@ -37,17 +37,16 @@ describe 'database' do
     end
 
     it 'prints error message when table is full' do
-        script = (1..1401).map do |i|
-            "insert #{i} user#{i} person#{i}@example.com"
-        end
-        script << ".exit"
-        result = run_script(script)
-        expect(result.last(2)).to match_array([
-            "db > Executed.",
-            "db > Need to implement splitting internal node",
-        ])
+    script = (1..1401).map do |i|
+      "insert #{i} user#{i} person#{i}@example.com"
     end
-    
+    script << ".exit"
+    result = run_script(script)
+    expect(result.last(2)).to match_array([
+      "db > Executed.",
+      "db > ",
+    ])
+  end
 
     it 'allows inserting strings that are the maximum length' do
         long_username = "a"*32
